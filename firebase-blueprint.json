@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "Folder": {
+      "title": "Folder",
+      "description": "User folders to organize notes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique folder ID" },
+        "name": { "type": "string", "description": "Folder display name" },
+        "user_id": { "type": "string", "description": "Owner user ID" }
+      },
+      "required": ["id", "name", "user_id"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "A study note, audio track reference, or PDF annotation carrier",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique note ID" },
+        "title": { "type": "string", "description": "Title of the note" },
+        "content": { "type": "string", "description": "Rich content or description of the note" },
+        "type": { "type": "string", "enum": ["text", "audio", "pdf"], "description": "Type of the notes content" },
+        "folder_id": { "type": "string", "description": "ID of parent folder if any" },
+        "file_url": { "type": "string", "description": "URL of the attached note file" },
+        "created_at": { "type": "string", "description": "Timestamp of creation" },
+        "user_id": { "type": "string", "description": "Owner user ID" }
+      },
+      "required": ["id", "title", "content", "type", "created_at", "user_id"]
+    },
+    "PdfAnnotation": {
+      "title": "PdfAnnotation",
+      "description": "User annotations and study notes scribbled directly on a PDF page",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique composite identifier" },
+        "pdf_url": { "type": "string", "description": "The annotated PDF URL" },
+        "page_number": { "type": "number", "description": "Page number whish holds these drawings" },
+        "canvas_json": { "type": "object", "description": "Drawing canvas vector layers representation" },
+        "comments_json": { "type": "array", "description": "Inline page comments index list" },
+        "updated_at": { "type": "string", "description": "Timestamp of modification" },
+        "user_id": { "type": "string", "description": "Annotator user ID" }
+      },
+      "required": ["id", "pdf_url", "page_number", "canvas_json", "comments_json", "updated_at", "user_id"]
+    }
+  },
+  "firestore": {
+    "folders/{folderId}": {
+      "schema": "Folder",
+      "description": "User folders"
+    },
+    "notes/{noteId}": {
+      "schema": "Note",
+      "description": "Individual study notes sync paths"
+    },
+    "pdf_annotations/{annotationId}": {
+      "schema": "PdfAnnotation",
+      "description": "PDF drawlayers state annotations"
+    }
+  }
+}

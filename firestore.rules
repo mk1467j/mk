@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // 1. Folders collection rules
+    match /folders/{folderId} {
+      allow read: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(folderId) && isValidFolder(request.resource.data) && request.resource.data.user_id == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(folderId) && isValidFolder(request.resource.data) && resource.data.user_id == request.auth.uid && request.resource.data.user_id == resource.data.user_id;
+      allow delete: if isSignedIn() && isValidId(folderId) && resource.data.user_id == request.auth.uid;
+    }
+
+    function isValidFolder(folder) {
+      return folder.keys().hasAll(['id', 'name', 'user_id']) 
+        && folder.keys().size() == 3
+        && folder.id is string && folder.id.size() <= 128
+        && folder.name is string && folder.name.size() <= 200
+        && folder.user_id is string && folder.user_id.size() <= 128;
+    }
+
+    // 2. Notes collection rules
+    match /notes/{noteId} {
+      allow read: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(noteId) && isValidNote(request.resource.data) && request.resource.data.user_id == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(noteId) && isValidNote(request.resource.data) && resource.data.user_id == request.auth.uid && request.resource.data.user_id == resource.data.user_id;
+      allow delete: if isSignedIn() && isValidId(noteId) && resource.data.user_id == request.auth.uid;
+    }
+
+    function isValidNote(note) {
+      return note.keys().hasAll(['id', 'title', 'content', 'type', 'created_at', 'user_id'])
+        && note.id is string && note.id.size() <= 128
+        && note.title is string && note.title.size() <= 200
+        && note.content is string && note.content.size() <= 10000000
+        && note.type is string && (note.type == 'text' || note.type == 'pdf' || note.type == 'image' || note.type == 'audio' || note.type == 'video' || note.type == 'link')
+        && note.created_at is string && note.created_at.size() <= 64
+        && note.user_id is string && note.user_id.size() <= 128
+        && (!note.keys().contains('folder_id') || note.folder_id == null || (note.folder_id is string && note.folder_id.size() <= 128))
+        && (!note.keys().contains('file_url') || note.file_url == null || (note.file_url is string && note.file_url.size() <= 1000000));
+    }
+
+    // 3. PDF Annotations collection rules
+    match /pdf_annotations/{annotationId} {
+      allow read: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(annotationId) && isValidAnnotation(request.resource.data) && request.resource.data.user_id == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(annotationId) && isValidAnnotation(request.resource.data) && resource.data.user_id == request.auth.uid && request.resource.data.user_id == resource.data.user_id;
+      allow delete: if isSignedIn() && isValidId(annotationId) && resource.data.user_id == request.auth.uid;
+    }
+
+    function isValidAnnotation(anno) {
+      return anno.keys().hasAll(['id', 'pdf_url', 'page_number', 'canvas_json', 'comments_json', 'updated_at', 'user_id'])
+        && anno.id is string && anno.id.size() <= 128
+        && anno.pdf_url is string && anno.pdf_url.size() <= 2000
+        && anno.page_number is int && anno.page_number >= 0
+        && anno.canvas_json is map
+        && anno.comments_json is list
+        && anno.updated_at is string && anno.updated_at.size() <= 64
+        && anno.user_id is string && anno.user_id.size() <= 128;
+    }
+  }
+}
