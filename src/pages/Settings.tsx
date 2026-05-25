@@ -138,7 +138,7 @@ export function Settings() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-16">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-16 relative overflow-x-hidden">
       
       {/* Decorative background aura lights */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">

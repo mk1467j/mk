@@ -97,7 +97,7 @@ export function Music() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 min-h-screen pb-16 relative">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 min-h-screen pb-16 relative overflow-x-hidden">
       
       {/* Dynamic ambient highlight lights */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">

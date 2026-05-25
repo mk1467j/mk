@@ -48,7 +48,7 @@ export function AmbientBackground() {
           repeatType: 'reverse',
           ease: 'easeInOut',
         }}
-        className="absolute -top-[20%] -left-[10%] w-[55vw] h-[55vw] rounded-full blur-[140px] z-[1] transition-all duration-1000"
+        className="absolute -top-[20%] -left-[10%] w-[55vw] h-[55vw] rounded-full blur-[140px] z-[1] transition-colors duration-1000"
         style={{ backgroundColor: 'var(--theme-ambient-1, rgba(139, 92, 246, 0.18))' }}
       />
       <motion.div
@@ -59,7 +59,7 @@ export function AmbientBackground() {
           repeatType: 'reverse',
           ease: 'easeInOut',
         }}
-        className="absolute top-[35%] -right-[10%] w-[50vw] h-[50vw] rounded-full blur-[130px] z-[1] transition-all duration-1000"
+        className="absolute top-[35%] -right-[10%] w-[50vw] h-[50vw] rounded-full blur-[130px] z-[1] transition-colors duration-1000"
         style={{ backgroundColor: 'var(--theme-ambient-2, rgba(99, 102, 241, 0.14))' }}
       />
 

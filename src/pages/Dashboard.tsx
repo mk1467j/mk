@@ -51,11 +51,13 @@ export function Dashboard() {
   // Focus Stats matching user screenshot defaults
   const [focusHours] = useState(() => {
     const saved = localStorage.getItem(`studyvibe_stat_focus_hours_${currentUserId}`);
-    return saved !== null ? Number(saved) : 32.4;
+    const isGuest = currentUserId.startsWith('guest_') || currentUserId === 'guest_default';
+    return saved !== null ? Number(saved) : (isGuest ? 32.4 : 0);
   });
   const [streakDays] = useState(() => {
     const saved = localStorage.getItem(`studyvibe_stat_streak_${currentUserId}`);
-    return saved !== null ? Number(saved) : 14;
+    const isGuest = currentUserId.startsWith('guest_') || currentUserId === 'guest_default';
+    return saved !== null ? Number(saved) : (isGuest ? 14 : 0);
   });
 
   // Load and cycle quote index
@@ -109,15 +111,18 @@ export function Dashboard() {
     if (saved) return JSON.parse(saved);
     
     // Default seed data for elegant visualization
+    const isGuest = currentUserId.startsWith('guest_') || currentUserId === 'guest_default';
     const defaults: Record<string, number> = {};
-    const y = new Date().getFullYear();
-    const m = new Date().getMonth();
-    // seed first few weeks of the month with beautiful focus streaks
-    for (let d = 1; d <= 23; d++) {
-      if (d % 6 === 0) defaults[`${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`] = 3; // stellar
-      else if (d % 3 === 0) defaults[`${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`] = 2; // deep
-      else if (d % 5 === 0) defaults[`${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`] = 0; // none
-      else defaults[`${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`] = 1; // light
+    if (isGuest) {
+      const y = new Date().getFullYear();
+      const m = new Date().getMonth();
+      // seed first few weeks of the month with beautiful focus streaks
+      for (let d = 1; d <= 23; d++) {
+        if (d % 6 === 0) defaults[`${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`] = 3; // stellar
+        else if (d % 3 === 0) defaults[`${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`] = 2; // deep
+        else if (d % 5 === 0) defaults[`${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`] = 0; // none
+        else defaults[`${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`] = 1; // light
+      }
     }
     return defaults;
   });
@@ -183,12 +188,13 @@ export function Dashboard() {
     if (saved) {
       setTasks(JSON.parse(saved));
     } else {
-      const defaultTasks: Task[] = [
+      const isGuest = currentUserId.startsWith('guest_') || currentUserId === 'guest_default';
+      const defaultTasks: Task[] = isGuest ? [
         { id: 1, title: 'Review immunology slides', category: 'BIOLOGY', completed: false, time: '2:15 PM', priority: 'High' },
         { id: 2, title: 'Algebra problem set 4', category: 'MATH', completed: false, time: '4:30 PM', priority: 'Medium' },
         { id: 3, title: 'Read Ch. 12 – Modernism', category: 'ARCHITECTURE', completed: false, time: '6:15 PM', priority: 'Low' },
         { id: 4, title: 'Submit lab report', category: 'CHEMISTRY', completed: true, time: '11:15 AM', priority: 'High' }
-      ];
+      ] : [];
       setTasks(defaultTasks);
       localStorage.setItem(storageKey, JSON.stringify(defaultTasks));
     }
@@ -212,8 +218,9 @@ export function Dashboard() {
 
   // Stats calculation
   const completedDynamicCount = tasks.filter(t => t.completed).length;
-  const tasksDoneStat = 127 + completedDynamicCount; // 128 base from user screenshot
-  const sessionsStat = 42 + Math.floor(completedDynamicCount * 0.5);
+  const isGuestUserFlag = currentUserId.startsWith('guest_') || currentUserId === 'guest_default';
+  const tasksDoneStat = (isGuestUserFlag ? 127 : 0) + completedDynamicCount; // 128 base from user screenshot
+  const sessionsStat = (isGuestUserFlag ? 42 : 0) + Math.floor(completedDynamicCount * 0.5);
 
   const handleAskAI = () => {
     setAiTyping(true);
@@ -241,7 +248,7 @@ export function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in duration-700">
+    <div className="space-y-6 pb-12 animate-in fade-in duration-700 relative overflow-x-hidden">
       
       {/* Minimalist Desk Bar - Hidden on mobile to prevent double upper bar structures */}
       <div className="hidden md:flex items-center justify-between py-4 border-b border-white/5">
@@ -418,57 +425,6 @@ export function Dashboard() {
               </h3>
             </div>
 
-          </div>
-
-          {/* Continue Working Section */}
-          <div className="space-y-4 pt-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif italic text-xl text-white font-normal">Continue working</h2>
-              <button 
-                onClick={() => navigate({ to: '/notes' })}
-                className="font-mono text-[10px] tracking-widest text-brand-purple hover:text-white uppercase font-bold transition-colors cursor-pointer"
-              >
-                View Library &rarr;
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              {/* Card 1: Purple-blue gradient premium card */}
-              <div 
-                onClick={() => navigate({ to: '/notes' })}
-                className="relative p-6.5 rounded-[24px] bg-gradient-to-r from-violet-700 via-indigo-800 to-blue-900 border border-white/10 hover:border-white/20 hover:scale-[1.01] transition-all cursor-pointer shadow-lg overflow-hidden group min-h-[160px] flex flex-col justify-between"
-              >
-                <div className="absolute -top-12 -right-12 w-32 h-32 bg-white/5 rounded-full blur-xl group-hover:scale-110 transition-transform" />
-                <div className="flex justify-between items-start">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-white/70 font-semibold">Advanced Neurobiology</span>
-                  <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] text-white">+</div>
-                </div>
-                <div>
-                  <h3 className="font-serif italic text-2xl font-light text-white leading-tight mt-6 tracking-normal">
-                    Final Exam Preparation
-                  </h3>
-                </div>
-              </div>
-
-              {/* Card 2: Deep blue/slate premium card */}
-              <div 
-                onClick={() => navigate({ to: '/notes' })}
-                className="relative p-6.5 rounded-[24px] bg-gradient-to-r from-neutral-950 via-neutral-900 to-neutral-950 border border-white/5 hover:border-white/12 hover:scale-[1.01] transition-all cursor-pointer shadow-lg overflow-hidden group min-h-[160px] flex flex-col justify-between"
-              >
-                <div className="absolute -top-12 -right-12 w-32 h-32 bg-indigo-500/5 rounded-full blur-xl group-hover:scale-110 transition-transform" />
-                <div className="flex justify-between items-start">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.25em] text-gray-500 font-semibold">Modernism Thesis</span>
-                  <div className="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center text-[10px] text-gray-400">+</div>
-                </div>
-                <div>
-                  <h3 className="font-serif italic text-2xl font-light text-white leading-tight mt-6 tracking-normal">
-                    Architectural Case Studies
-                  </h3>
-                </div>
-              </div>
-
-            </div>
           </div>
 
           {/* Month-Level Focus Streak Heatmap & Up Next Feed */}

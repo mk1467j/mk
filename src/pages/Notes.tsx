@@ -18,6 +18,7 @@ import { VideoPlayer } from '@/components/notes/VideoPlayer';
 import { ImageViewer } from '@/components/notes/ImageViewer';
 import { isFirebaseConfigured, db, handleFirestoreError, OperationType } from '@/lib/firebase';
 import { collection, query, where, getDocs, setDoc, doc, deleteDoc } from 'firebase/firestore';
+import { saveFileToStorage, getFileObjectURL, deleteFileFromStorage } from '@/lib/fileStorage';
 
 export function Notes() {
   const { user, guestUser } = useAuth();
@@ -105,8 +106,33 @@ export function Notes() {
       loadedNotes = savedNotes ? JSON.parse(savedNotes) : fallbackNotes;
     }
 
+    // Hydrate loaded notes to resolve any indexeddb:// URIs to live session blob object URLs
+    const hydratedNotes = await Promise.all(loadedNotes.map(async (note) => {
+      if (note.file_url) {
+        if (note.file_url.startsWith('indexeddb://') || note.file_url.startsWith('data:')) {
+          const fileId = note.file_url.startsWith('indexeddb://')
+            ? note.file_url.replace('indexeddb://', '')
+            : note.id;
+
+          // Migrate legacy or newly created base64 strings into IndexedDB storage automatically
+          if (note.file_url.startsWith('data:')) {
+            await saveFileToStorage(note.id, note.file_url);
+          }
+
+          const blobUrl = await getFileObjectURL(fileId);
+          if (blobUrl) {
+            return {
+              ...note,
+              file_url: blobUrl
+            };
+          }
+        }
+      }
+      return note;
+    }));
+
     setFolders(loadedFolders);
-    setNotes(loadedNotes);
+    setNotes(hydratedNotes);
     setLoading(false);
   };
 
@@ -162,21 +188,44 @@ export function Notes() {
   };
 
   const updateNotesState = async (nextNotes: Note[]) => {
+    // Keep active in-memory state with current (blob/base64) file_url so rendering remains intact
     setNotes(nextNotes);
+
     try {
-      localStorage.setItem(`studyvibe_notes_${currentUserId}`, JSON.stringify(nextNotes));
+      // Process notes to extract large base64/blob files and store them in IndexedDB instead of LocalStorage
+      const notesToSerialize = await Promise.all(nextNotes.map(async (note) => {
+        if (note.file_url) {
+          // If the file is still a raw data URI, save it to IndexedDB and update reference
+          if (note.file_url.startsWith('data:')) {
+            await saveFileToStorage(note.id, note.file_url);
+            return {
+              ...note,
+              file_url: `indexeddb://${note.id}`
+            };
+          } else if (note.file_url.startsWith('blob:')) {
+            // If it is a blob url, it's already saved as a binary in IndexedDB, so save reference
+            return {
+              ...note,
+              file_url: `indexeddb://${note.id}`
+            };
+          }
+        }
+        return note;
+      }));
+
+      localStorage.setItem(`studyvibe_notes_${currentUserId}`, JSON.stringify(notesToSerialize));
     } catch (err) {
-      console.warn('LocalStorage limit reached for notes, cleaning up and shrinking large data references:', err);
+      console.warn('LocalStorage limit fallback trigger:', err);
+      // Clean fallback in case of write failures
       const safeNotes = nextNotes.map(n => {
         if (n.file_url && n.file_url.startsWith('data:') && n.file_url.length > 50000) {
           return {
             ...n,
-            file_url: "https://arxiv.org/pdf/2103.11911.pdf" // elegant online preview PDF
+            file_url: "https://arxiv.org/pdf/2103.11911.pdf"
           };
         }
         return n;
       });
-      setNotes(safeNotes);
       try {
         localStorage.setItem(`studyvibe_notes_${currentUserId}`, JSON.stringify(safeNotes));
       } catch (inner) {
@@ -186,14 +235,19 @@ export function Notes() {
 
     if (isFirebaseConfigured && user) {
       try {
+        // Upload lightweight records to Firestore
         for (const note of nextNotes) {
+          const fileToSave = (note.file_url && (note.file_url.startsWith('data:') || note.file_url.startsWith('blob:')))
+            ? `indexeddb://${note.id}`
+            : (note.file_url || null);
+
           const notePayload = { 
             id: note.id,
             title: note.title,
             content: note.content,
             type: note.type,
             folder_id: note.folder_id || null,
-            file_url: note.file_url || null,
+            file_url: fileToSave,
             created_at: note.created_at,
             user_id: currentUserId 
           };
@@ -296,6 +350,7 @@ export function Notes() {
   const handleDeleteNote = async (id: string) => {
     const nextNotes = notes.filter(n => n.id !== id);
     await updateNotesState(nextNotes);
+    await deleteFileFromStorage(id);
     if (editingNote?.id === id) {
       setEditingNote(null);
     }
@@ -323,7 +378,20 @@ export function Notes() {
     if (note.type === 'text') {
       setEditingNote(note);
     } else if (note.type === 'pdf' && note.file_url) {
-      setActivePdf({ url: note.file_url, title: note.title });
+      // Open our shiny new resizable PDF viewer sidebar
+      try {
+        localStorage.setItem('pdf_sidebar_open', 'true');
+        window.dispatchEvent(new Event('pdf-sidebar-state-change'));
+        
+        // Dispatch document opening details to sidebar
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('open-pdf-study-document', {
+            detail: { url: note.file_url, name: note.title }
+          }));
+        }, 100);
+      } catch (err) {
+        console.warn('Failed to set localStorage PDF state', err);
+      }
     } else {
       // Open editors or special players directly inline or in an immersive card viewer
       setEditingNote(note);
@@ -349,19 +417,8 @@ export function Notes() {
   }, [notes, searchQuery, selectedTypeFilter, currentFolderId]);
 
   return (
-    <div className="space-y-6 h-full flex flex-col animate-in fade-in slide-in-from-bottom-8 duration-700 relative">
+    <div className="space-y-6 h-full flex flex-col animate-in fade-in slide-in-from-bottom-8 duration-700 relative overflow-x-hidden">
       
-      {/* Dynamic Floating PDF Reader */}
-      <AnimatePresence>
-        {activePdf && (
-          <PdfViewer 
-            url={activePdf.url} 
-            title={activePdf.title} 
-            onClose={() => setActivePdf(null)} 
-          />
-        )}
-      </AnimatePresence>
-
       {/* Top Title/Search bar Header Section */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-white/5">
         <div>

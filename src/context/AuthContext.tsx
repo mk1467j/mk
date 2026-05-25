@@ -36,6 +36,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isGuest: boolean;
+  googleAccessToken: string | null;
   login: (email: string, password: string) => Promise<{ error: any }>;
   signup: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
   loginWithGoogle: (customEmail?: string, customName?: string) => Promise<{ error: any }>;
@@ -52,6 +53,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [guestUser, setGuestUser] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(() => {
+    return localStorage.getItem('studyvibe_google_token');
+  });
+
+  useEffect(() => {
+    if (googleAccessToken) {
+      localStorage.setItem('studyvibe_google_token', googleAccessToken);
+    } else {
+      localStorage.removeItem('studyvibe_google_token');
+    }
+  }, [googleAccessToken]);
 
   // Initialize Auth State
   useEffect(() => {
@@ -270,6 +282,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(userCredential);
+      if (credential?.accessToken) {
+        setGoogleAccessToken(credential.accessToken);
+      }
+      
       const mappedUser: User = {
         id: userCredential.user.uid,
         email: userCredential.user.email || '',
@@ -315,6 +332,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     setLoading(true);
     localStorage.removeItem('studyvibe_mock_auth');
+    setGoogleAccessToken(null);
     
     const isMock = !isFirebaseConfigured;
     if (!isMock) {
@@ -349,6 +367,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       loading,
       isGuest,
+      googleAccessToken,
       login,
       signup,
       loginWithGoogle,

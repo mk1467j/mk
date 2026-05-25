@@ -579,7 +579,7 @@ export function Focus() {
   const ringOffset = ringCircumference - (progressRatio * ringCircumference);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 min-h-screen pb-16 relative">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 min-h-screen pb-16 relative overflow-x-hidden">
       
       {/* Real-time Document/Tab Title Sync for cognitive session focus */}
       <TabTitleSync remainingSecs={timeLeft} isActive={isActive} modeName={selectedMode.name} />

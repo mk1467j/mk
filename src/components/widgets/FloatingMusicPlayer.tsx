@@ -60,8 +60,42 @@ export function FloatingMusicPlayer() {
     return saved !== null ? JSON.parse(saved) : false;
   });
 
+  useEffect(() => {
+    const clampPosition = () => {
+      setPosition(prev => {
+        const maxX = window.innerWidth - 300;
+        const maxY = window.innerHeight - 320;
+        let newX = prev.x;
+        let newY = prev.y;
+
+        if (newX > maxX || newX < 10) {
+          newX = Math.max(10, Math.min(newX, Math.max(10, maxX)));
+        }
+        if (newY > maxY || newY < 10) {
+          newY = Math.max(10, Math.min(newY, Math.max(10, maxY)));
+        }
+        return { x: newX, y: newY };
+      });
+    };
+
+    clampPosition();
+    window.addEventListener('resize', clampPosition);
+    return () => window.removeEventListener('resize', clampPosition);
+  }, []);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const ytContainerRef = useRef<HTMLDivElement>(null);
+
+  // Listen to mobile stage centerpiece controller custom events
+  useEffect(() => {
+    const handleToggle = () => {
+      setIsOpen(prev => !prev);
+    };
+    window.addEventListener('toggle-music-widget', handleToggle);
+    return () => {
+      window.removeEventListener('toggle-music-widget', handleToggle);
+    };
+  }, []);
 
   // Store window states
   useEffect(() => {
@@ -188,6 +222,22 @@ export function FloatingMusicPlayer() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  let width = 300;
+  let height = 320;
+  if (!isOpen) {
+    width = 160;
+    height = 45;
+  } else if (isMinimized) {
+    width = 250;
+    height = 50;
+  }
+  const dynamicDragConstraints = {
+    left: -position.x + 10,
+    right: Math.max(10, window.innerWidth - position.x - width - 10),
+    top: -position.y + 10,
+    bottom: Math.max(10, window.innerHeight - position.y - height - 10)
+  };
+
   // Determine cover visuals
   const trackEmoji = currentTrack?.cover || '🎵';
   const isSpotify = currentTrack?.source === 'spotify';
@@ -195,8 +245,9 @@ export function FloatingMusicPlayer() {
   return (
     <motion.div
       ref={containerRef}
-      style={{ left: position.x, top: position.y }}
+      style={{ left: position.x, top: position.y, x: 0, y: 0 }}
       {...dragProps}
+      dragConstraints={dynamicDragConstraints}
       className="fixed z-[100] select-none"
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -204,7 +255,7 @@ export function FloatingMusicPlayer() {
       transition={{ type: 'spring', stiffness: 300, damping: 25 }}
     >
       {/* Hidden YouTube rendering engine node */}
-      <div ref={ytContainerRef} className="fixed -left-[9999px] -top-[9999px] pointer-events-none" style={{ width: '200px', height: '200px', overflow: 'hidden' }} />
+      <div ref={ytContainerRef} className="fixed bottom-4 right-4 w-[1px] h-[1px] opacity-0 pointer-events-none overflow-hidden select-none z-[-50]" />
 
       <AnimatePresence mode="wait">
         {!isOpen ? (

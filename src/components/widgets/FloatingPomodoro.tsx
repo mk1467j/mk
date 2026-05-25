@@ -23,19 +23,79 @@ export function FloatingPomodoro() {
     return saved !== null ? JSON.parse(saved) : false;
   });
 
+  // Helpers & Configurations
+  type FocusModeId = 'pomodoro' | 'deep_work' | 'quick_focus' | 'long_sprint' | 'short_break' | 'long_break';
+
+  const MODE_DURATIONS: Record<FocusModeId, number> = {
+    pomodoro: 25 * 60,
+    deep_work: 50 * 60,
+    quick_focus: 15 * 60,
+    long_sprint: 90 * 60,
+    short_break: 5 * 60,
+    long_break: 15 * 60,
+  };
+
+  const MODE_ACCENTS: Record<FocusModeId, string> = {
+    pomodoro: '#8b5cf6',
+    deep_work: '#f59e0b',
+    quick_focus: '#06b6d4',
+    long_sprint: '#10b881',
+    short_break: '#ec4899',
+    long_break: '#d946ef',
+  };
+
   // Pomodoro States
   const [timeLeft, setTimeLeft] = useState(() => {
-    const saved = localStorage.getItem('studyvibe_pomodoro_timeleft');
-    return saved !== null ? JSON.parse(saved) : 25 * 60;
+    const saved = localStorage.getItem('studyvibe_focus_time_left');
+    return saved !== null ? parseInt(saved, 10) : 25 * 60;
   });
-  const [isActive, setIsActive] = useState(false);
-  const [currentMode, setCurrentMode] = useState<'study' | 'shortBreak' | 'longBreak'>('study');
+  const [isActive, setIsActive] = useState(() => {
+    return localStorage.getItem('studyvibe_focus_is_active') === 'true';
+  });
+  const [currentMode, setCurrentMode] = useState<FocusModeId>(() => {
+    return (localStorage.getItem('studyvibe_focus_active_mode') || 'pomodoro') as FocusModeId;
+  });
   const [completedSessions, setCompletedSessions] = useState(() => {
     const saved = localStorage.getItem('studyvibe_pomodoro_sessions');
     return saved !== null ? JSON.parse(saved) : 0;
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Viewport clamping effect to make sure widget position is always visible
+  useEffect(() => {
+    const clampPosition = () => {
+      setPosition(prev => {
+        const maxX = window.innerWidth - 320; // safe width padding
+        const maxY = window.innerHeight - 450; // safe height padding
+        let newX = prev.x;
+        let newY = prev.y;
+
+        if (newX > maxX || newX < 10) {
+          newX = Math.max(10, Math.min(newX, Math.max(10, maxX)));
+        }
+        if (newY > maxY || newY < 10) {
+          newY = Math.max(10, Math.min(newY, Math.max(10, maxY)));
+        }
+        return { x: newX, y: newY };
+      });
+    };
+
+    clampPosition();
+    window.addEventListener('resize', clampPosition);
+    return () => window.removeEventListener('resize', clampPosition);
+  }, []);
+
+  // Listen to mobile stage centerpiece controller custom events
+  useEffect(() => {
+    const handleToggle = () => {
+      setIsOpen(prev => !prev);
+    };
+    window.addEventListener('toggle-pomodoro-widget', handleToggle);
+    return () => {
+      window.removeEventListener('toggle-pomodoro-widget', handleToggle);
+    };
+  }, []);
 
   // Sync state to localStorage
   useEffect(() => {
@@ -54,39 +114,81 @@ export function FloatingPomodoro() {
     localStorage.setItem('studyvibe_pomodoro_sessions', JSON.stringify(completedSessions));
   }, [completedSessions]);
 
+  // Synchronize with standard focus timer keys in real-time
   useEffect(() => {
-    localStorage.setItem('studyvibe_pomodoro_timeleft', JSON.stringify(timeLeft));
-  }, [timeLeft]);
+    const syncFromStorage = () => {
+      const savedTimeLeftStr = localStorage.getItem('studyvibe_focus_time_left');
+      const savedIsActive = localStorage.getItem('studyvibe_focus_is_active') === 'true';
+      const savedMode = (localStorage.getItem('studyvibe_focus_active_mode') || 'pomodoro') as FocusModeId;
+      const savedTimestampStr = localStorage.getItem('studyvibe_focus_saved_timestamp');
+
+      if (savedTimeLeftStr) {
+        const parsedTimeLeft = parseInt(savedTimeLeftStr, 10);
+        if (!isNaN(parsedTimeLeft)) {
+          if (savedIsActive && savedTimestampStr) {
+            const savedTimestamp = parseInt(savedTimestampStr, 10);
+            if (!isNaN(savedTimestamp)) {
+              const timeElapsed = Math.floor((Date.now() - savedTimestamp) / 1000);
+              const remainingVal = Math.max(0, parsedTimeLeft - timeElapsed);
+              setTimeLeft(remainingVal);
+              setIsActive(remainingVal > 0 ? savedIsActive : false);
+              setCurrentMode(savedMode);
+              return;
+            }
+          }
+          setTimeLeft(parsedTimeLeft);
+          setIsActive(savedIsActive);
+          setCurrentMode(savedMode);
+        }
+      }
+    };
+
+    syncFromStorage();
+    window.addEventListener('storage', syncFromStorage);
+    window.addEventListener('focus', syncFromStorage);
+    window.addEventListener('studyvibe-timer-sync', syncFromStorage);
+    return () => {
+      window.removeEventListener('storage', syncFromStorage);
+      window.removeEventListener('focus', syncFromStorage);
+      window.removeEventListener('studyvibe-timer-sync', syncFromStorage);
+    };
+  }, []);
 
   // Pomodoro countdown effect
   useEffect(() => {
     let interval: any = null;
     if (isActive && timeLeft > 0) {
       interval = setInterval(() => {
-        setTimeLeft((time: number) => time - 1);
+        setTimeLeft((time: number) => {
+          const next = time - 1;
+          localStorage.setItem('studyvibe_focus_time_left', next.toString());
+          localStorage.setItem('studyvibe_focus_saved_timestamp', Date.now().toString());
+          return next;
+        });
       }, 1000);
     } else if (timeLeft === 0 && isActive) {
       setIsActive(false);
-      // Play a visual alert or notify
+      localStorage.setItem('studyvibe_focus_is_active', 'false');
+      localStorage.setItem('studyvibe_focus_saved_timestamp', Date.now().toString());
+      window.dispatchEvent(new CustomEvent('studyvibe-timer-sync'));
       handleSessionComplete();
     }
     return () => clearInterval(interval);
   }, [isActive, timeLeft]);
 
   const handleSessionComplete = () => {
-    if (currentMode === 'study') {
+    const isFocusSession = ['pomodoro', 'deep_work', 'quick_focus', 'long_sprint'].includes(currentMode);
+    if (isFocusSession) {
       const nextSessions = completedSessions + 1;
       setCompletedSessions(nextSessions);
-      // Automatically toggle to break
       if (nextSessions % 4 === 0) {
-        setMode('longBreak');
+        setMode('long_break');
       } else {
-        setMode('shortBreak');
+        setMode('short_break');
       }
     } else {
-      setMode('study');
+      setMode('pomodoro');
     }
-    // Simple modern sound synthesis trigger (unobtrusive, beautiful browser synthesizer)
     try {
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const oscillator = audioCtx.createOscillator();
@@ -105,19 +207,28 @@ export function FloatingPomodoro() {
     }
   };
 
-  const setMode = (mode: 'study' | 'shortBreak' | 'longBreak') => {
+  const setMode = (mode: FocusModeId) => {
+    const duration = MODE_DURATIONS[mode] || 25 * 60;
+
     setCurrentMode(mode);
     setIsActive(false);
-    if (mode === 'study') {
-      setTimeLeft(25 * 60);
-    } else if (mode === 'shortBreak') {
-      setTimeLeft(5 * 60);
-    } else {
-      setTimeLeft(15 * 60);
-    }
+    setTimeLeft(duration);
+
+    localStorage.setItem('studyvibe_focus_active_mode', mode);
+    localStorage.setItem('studyvibe_focus_time_left', duration.toString());
+    localStorage.setItem('studyvibe_focus_is_active', 'false');
+    localStorage.setItem('studyvibe_focus_saved_timestamp', Date.now().toString());
+    window.dispatchEvent(new CustomEvent('studyvibe-timer-sync'));
   };
 
-  const toggleTimer = () => setIsActive(!isActive);
+  const toggleTimer = () => {
+    const nextActive = !isActive;
+    setIsActive(nextActive);
+    localStorage.setItem('studyvibe_focus_is_active', nextActive.toString());
+    localStorage.setItem('studyvibe_focus_saved_timestamp', Date.now().toString());
+    window.dispatchEvent(new CustomEvent('studyvibe-timer-sync'));
+  };
+
   const resetTimer = () => {
     setIsActive(false);
     setMode(currentMode);
@@ -142,14 +253,18 @@ export function FloatingPomodoro() {
 
   const activeModeLabel = () => {
     switch (currentMode) {
-      case 'study': return 'Study Mode';
-      case 'shortBreak': return 'Short Break';
-      case 'longBreak': return 'Long Break';
+      case 'pomodoro': return 'Pomodoro';
+      case 'deep_work': return 'Deep Work';
+      case 'quick_focus': return 'Quick Focus';
+      case 'long_sprint': return 'Long Sprint';
+      case 'short_break': return 'Short Break';
+      case 'long_break': return 'Long Break';
+      default: return 'Study Session';
     }
   };
 
   const getPercentageLeft = () => {
-    const max = currentMode === 'study' ? 25 * 60 : currentMode === 'shortBreak' ? 5 * 60 : 15 * 60;
+    const max = MODE_DURATIONS[currentMode] || 25 * 60;
     return (timeLeft / max) * 100;
   };
 
@@ -165,6 +280,15 @@ export function FloatingPomodoro() {
     );
   }
 
+  const width = isMinimized ? 200 : 320;
+  const height = isMinimized ? 80 : 450;
+  const dynamicDragConstraints = {
+    left: -position.x + 10,
+    right: Math.max(10, window.innerWidth - position.x - width - 10),
+    top: -position.y + 10,
+    bottom: Math.max(10, window.innerHeight - position.y - height - 10)
+  };
+
   const dragProps = isPinned ? {} : {
     drag: true,
     dragMomentum: false,
@@ -175,8 +299,9 @@ export function FloatingPomodoro() {
   return (
     <motion.div
       ref={containerRef}
-      style={{ left: position.x, top: position.y }}
+      style={{ left: position.x, top: position.y, x: 0, y: 0 }}
       {...dragProps}
+      dragConstraints={dynamicDragConstraints}
       className="fixed z-[80] select-none"
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -198,7 +323,7 @@ export function FloatingPomodoro() {
                 <circle cx="16" cy="16" r="14" stroke="rgba(255,255,255,0.05)" strokeWidth="2.5" fill="transparent" />
                 <circle 
                   cx="16" cy="16" r="14" 
-                  stroke={currentMode === 'study' ? '#8b5cf6' : '#10b981'} 
+                  stroke={MODE_ACCENTS[currentMode] || '#8b5cf6'} 
                   strokeWidth="2.5" 
                   fill="transparent" 
                   strokeDasharray={2 * Math.PI * 14}
@@ -214,7 +339,7 @@ export function FloatingPomodoro() {
             </div>
 
             <div className="flex flex-col select-none pr-1">
-              <span className="text-[10px] text-gray-400 capitalize truncate w-14 leading-none">{currentMode === 'study' ? 'focusing' : 'break'}</span>
+              <span className="text-[10px] text-gray-400 capitalize truncate w-14 leading-none">{currentMode.includes('break') ? 'break' : 'focusing'}</span>
               <span className="text-sm font-semibold text-white tracking-widest tabular-nums mt-0.5">{formatTime(timeLeft)}</span>
             </div>
 
@@ -242,7 +367,7 @@ export function FloatingPomodoro() {
             {/* Drag Handle & Controls */}
             <div className="flex items-center justify-between pb-4 border-b border-white/5 mb-4 select-none">
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} style={{ backgroundColor: MODE_ACCENTS[currentMode] }} />
                 <span className="font-serif italic text-sm text-gray-200">Focus Core</span>
               </div>
 
@@ -271,25 +396,32 @@ export function FloatingPomodoro() {
               </div>
             </div>
 
-            {/* Timer Modes */}
-            <div className="flex gap-1.5 bg-white/5 p-1 rounded-2xl border border-white/5 mb-5 select-none" onClick={(e) => e.stopPropagation()}>
-              {(['study', 'shortBreak', 'longBreak'] as const).map((m) => (
+            {/* Timer Modes Selector Grid */}
+            <div className="grid grid-cols-3 gap-1.5 bg-white/5 p-1 rounded-2xl border border-white/10 mb-5 select-none" onClick={(e) => e.stopPropagation()}>
+              {(['pomodoro', 'deep_work', 'quick_focus', 'long_sprint', 'short_break', 'long_break'] as const).map((m) => (
                 <button
                   key={m}
                   onClick={() => setMode(m)}
-                  className={`flex-1 py-1.5 text-[10px] uppercase font-bold tracking-widest rounded-xl transition-all font-mono ${
+                  style={{ borderColor: currentMode === m ? `${MODE_ACCENTS[m]}40` : 'transparent' }}
+                  className={`py-1.5 text-[9px] uppercase font-bold tracking-wider rounded-xl transition-all font-mono leading-none border truncate ${
                     currentMode === m
-                      ? 'bg-brand-purple text-white shadow-md'
+                      ? 'bg-white/10 text-white shadow-md'
                       : 'text-gray-400 hover:text-white hover:bg-white/5'
                   }`}
+                  title={m.replace('_', ' ')}
                 >
-                  {m === 'study' ? 'focus' : m === 'shortBreak' ? 'short' : 'long'}
+                  {m === 'pomodoro' ? 'pomo' : m === 'deep_work' ? 'deep' : m === 'quick_focus' ? 'micro' : m === 'long_sprint' ? 'sprint' : m === 'short_break' ? 'short' : 'long'}
                 </button>
               ))}
             </div>
 
             {/* Circular countdown visualization */}
-            <div className="relative w-40 h-40 mx-auto mb-5 flex items-center justify-center select-none" onClick={(e) => e.stopPropagation()}>
+            <motion.div 
+              className="relative w-40 h-40 mx-auto mb-5 flex items-center justify-center select-none" 
+              onClick={(e) => e.stopPropagation()}
+              animate={isActive ? { scale: [1, 1.03, 1] } : { scale: 1 }}
+              transition={isActive ? { repeat: Infinity, duration: 4, ease: "easeInOut" } : {}}
+            >
               <svg className="absolute inset-0 w-full h-full transform -rotate-90">
                 <circle cx="80" cy="80" r="74" stroke="rgba(255, 255, 255, 0.04)" strokeWidth="4.5" fill="transparent" />
                 <circle 
@@ -304,27 +436,27 @@ export function FloatingPomodoro() {
                 />
                 <defs>
                   <linearGradient id="widgetPurpleGlowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#8b5cf6" />
-                    <stop offset="100%" stopColor="#6366f1" />
+                    <stop offset="0%" stopColor={MODE_ACCENTS[currentMode] || '#8b5cf6'} />
+                    <stop offset="100%" stopColor={currentMode.includes('break') ? '#059669' : '#6366f1'} />
                   </linearGradient>
                 </defs>
               </svg>
 
               <div className="flex flex-col items-center justify-center">
-                <span className="text-3xl font-mono font-light tracking-tight tabular-nums text-white">
+                <span className="text-3xl font-mono font-light tracking-tight tabular-nums text-white" style={{ color: MODE_ACCENTS[currentMode] }}>
                   {formatTime(timeLeft)}
                 </span>
                 <span className="text-[9px] font-mono text-gray-500 uppercase tracking-widest mt-0.5">
                   {activeModeLabel()}
                 </span>
               </div>
-            </div>
+            </motion.div>
 
             {/* Dynamic session metadata */}
             <div className="text-center mb-5 px-4 select-none">
               <div className="flex items-center justify-between text-xs font-mono text-gray-400 bg-white/5 border border-white/5 py-2 px-3.5 rounded-xl">
                 <span>Completed Rounds</span>
-                <span className="text-brand-purple font-medium text-sm font-semibold">{completedSessions}</span>
+                <span className="font-medium text-sm font-semibold" style={{ color: MODE_ACCENTS[currentMode] }}>{completedSessions}</span>
               </div>
             </div>
 

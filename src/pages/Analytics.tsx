@@ -23,10 +23,39 @@ export function Analytics() {
   const currentUserId = user?.id || guestUser?.id || 'guest_default';
 
   // Live aggregated storage configurations
-  const [realFocusHours, setRealFocusHours] = useState<number>(14.8);
-  const [realStreak, setRealStreak] = useState<number>(8);
+  const [realFocusHours, setRealFocusHours] = useState<number>(() => {
+    const isGuest = currentUserId.startsWith('guest_') || currentUserId === 'guest_default';
+    return isGuest ? 14.8 : 0;
+  });
+  const [realStreak, setRealStreak] = useState<number>(() => {
+    const isGuest = currentUserId.startsWith('guest_') || currentUserId === 'guest_default';
+    return isGuest ? 8 : 0;
+  });
   const [liveTasksCount, setLiveTasksCount] = useState({ completed: 0, total: 0 });
   const [focusLogsLength, setFocusLogsLength] = useState<number>(0);
+
+  // Real-time background screen-time tracking states
+  const [screentimeSecs, setScreentimeSecs] = useState<number>(() => {
+    const key = `studyvibe_web_screentime_${currentUserId}`;
+    return Number(localStorage.getItem(key) || 0);
+  });
+
+  useEffect(() => {
+    const key = `studyvibe_web_screentime_${currentUserId}`;
+    const interval = setInterval(() => {
+      setScreentimeSecs(Number(localStorage.getItem(key) || 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [currentUserId]);
+
+  const formatScreentime = (secs: number) => {
+    const hours = Math.floor(secs / 3600);
+    const minutes = Math.floor((secs % 3600) / 60);
+    const seconds = secs % 60;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
+  };
 
   // 5. Load or seed weekly task completion stats
   const [weeklyTasks, setWeeklyTasks] = useState<Record<string, number>>(() => {
@@ -35,6 +64,10 @@ export function Analytics() {
       try {
         return JSON.parse(saved);
       } catch (e) {}
+    }
+    const isGuest = currentUserId.startsWith('guest_') || currentUserId === 'guest_default';
+    if (!isGuest) {
+      return { 'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0, 'Sun': 0 };
     }
     // Default seed data that looks realistic and matches completed count if possible
     return {
@@ -192,16 +225,27 @@ export function Analytics() {
       }
     }
 
+    const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const todayLabel = daysMap[new Date().getDay()];
+    const screentimeHoursVal = screentimeSecs / 3600;
+    const isGuest = currentUserId.startsWith('guest_') || currentUserId === 'guest_default';
+
     return [
-      { name: 'Mon', hours: parseFloat((baseWeek.find(d => d.name === 'Mon')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Mon')?.Tasks || 0), efficiency: (baseWeek.find(d => d.name === 'Mon')?.hours || 0) > 0 ? 85 : 0 },
-      { name: 'Tue', hours: parseFloat((baseWeek.find(d => d.name === 'Tue')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Tue')?.Tasks || 0), efficiency: (baseWeek.find(d => d.name === 'Tue')?.hours || 0) > 0 ? 90 : 0 },
-      { name: 'Wed', hours: parseFloat((baseWeek.find(d => d.name === 'Wed')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Wed')?.Tasks || 0), efficiency: (baseWeek.find(d => d.name === 'Wed')?.hours || 0) > 0 ? 78 : 0 },
-      { name: 'Thu', hours: parseFloat((baseWeek.find(d => d.name === 'Thu')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Thu')?.Tasks || 0), efficiency: (baseWeek.find(d => d.name === 'Thu')?.hours || 0) > 0 ? 95 : 0 },
-      { name: 'Fri', hours: parseFloat((baseWeek.find(d => d.name === 'Fri')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Fri')?.Tasks || 0), efficiency: (baseWeek.find(d => d.name === 'Fri')?.hours || 0) > 0 ? 88 : 0 },
-      { name: 'Sat', hours: parseFloat((baseWeek.find(d => d.name === 'Sat')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Sat')?.Tasks || 0), efficiency: (baseWeek.find(d => d.name === 'Sat')?.hours || 0) > 0 ? 92 : 0 },
-      { name: 'Sun', hours: parseFloat((baseWeek.find(d => d.name === 'Sun')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Sun')?.Tasks || 0), efficiency: (baseWeek.find(d => d.name === 'Sun')?.hours || 0) > 0 ? 86 : 0 }
-    ];
-  }, [focusLogsLength]);
+      { name: 'Mon', hours: parseFloat((baseWeek.find(d => d.name === 'Mon')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Mon')?.Tasks || 0), screentime: isGuest ? 1.5 : 0, efficiency: 85 },
+      { name: 'Tue', hours: parseFloat((baseWeek.find(d => d.name === 'Tue')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Tue')?.Tasks || 0), screentime: isGuest ? 2.1 : 0, efficiency: 90 },
+      { name: 'Wed', hours: parseFloat((baseWeek.find(d => d.name === 'Wed')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Wed')?.Tasks || 0), screentime: isGuest ? 0.9 : 0, efficiency: 78 },
+      { name: 'Thu', hours: parseFloat((baseWeek.find(d => d.name === 'Thu')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Thu')?.Tasks || 0), screentime: isGuest ? 3.0 : 0, efficiency: 95 },
+      { name: 'Fri', hours: parseFloat((baseWeek.find(d => d.name === 'Fri')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Fri')?.Tasks || 0), screentime: isGuest ? 1.8 : 0, efficiency: 88 },
+      { name: 'Sat', hours: parseFloat((baseWeek.find(d => d.name === 'Sat')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Sat')?.Tasks || 0), screentime: isGuest ? 0.4 : 0, efficiency: 92 },
+      { name: 'Sun', hours: parseFloat((baseWeek.find(d => d.name === 'Sun')?.hours || 0).toFixed(1)), tasks: (baseWeek.find(d => d.name === 'Sun')?.Tasks || 0), screentime: isGuest ? 1.2 : 0, efficiency: 86 }
+    ].map(item => {
+      if (item.name === todayLabel) {
+        // Today expands with current session screen time dynamically
+        item.screentime = parseFloat((item.screentime + screentimeHoursVal).toFixed(2));
+      }
+      return item;
+    });
+  }, [focusLogsLength, screentimeSecs, currentUserId]);
 
   // Dynamic skill index based on actually logged study categories (Starting from 0)
   const SUBJECT_RADAR_DATA = useMemo(() => {
@@ -294,14 +338,17 @@ export function Analytics() {
 
   // Dynamic Productivity Score compile values
   const compiledStats = useMemo(() => {
-    // Math formulas combining real parameters and standard metrics
+    // Math formulas combining real parameters, active screentime, and standard metrics
     const hoursWeight = realFocusHours * 1.5;
+    const screentimeHours = screentimeSecs / 3600;
+    const screentimeWeight = screentimeHours * 2.0; // reward actual active screen times
+    
     const taskCompletionRatio = liveTasksCount.total > 0 
       ? (liveTasksCount.completed / liveTasksCount.total) * 45 
       : 30;
     const streakBonus = Math.min(25, realStreak * 1.8);
     
-    const compositeScore = Math.min(100, Math.round(hoursWeight + taskCompletionRatio + streakBonus + 12));
+    const compositeScore = Math.min(100, Math.round(hoursWeight + screentimeWeight + taskCompletionRatio + streakBonus + 12));
     
     // qualitative diagnostic feedbacks
     let level = 'Cohesive Core';
@@ -335,7 +382,7 @@ export function Analytics() {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 min-h-screen pb-16 relative">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 min-h-screen pb-16 relative overflow-x-hidden">
       
       {/* Cinematic ambient background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
@@ -430,22 +477,21 @@ export function Analytics() {
           </div>
         </GlassCard>
 
-        {/* Metric Card 4: Milestones completed stats */}
-        <GlassCard className="p-5 border-white/5 bg-white/[0.015] flex flex-col justify-between relative overflow-hidden group hover:border-emerald-500/20">
+        {/* Metric Card 4: Web App active Screen Time stats */}
+        <GlassCard className="p-5 border-white/5 bg-white/[0.015] flex flex-col justify-between relative overflow-hidden group hover:border-[#10b881]/20">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/[0.04] rounded-full blur-2xl pointer-events-none" />
           <div className="flex justify-between items-center text-gray-400">
-             <span className="text-[10px] font-mono uppercase tracking-wider">Milestone compilation</span>
-             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+             <span className="text-[10px] font-mono uppercase tracking-wider">Web App Screen Time</span>
+             <Activity className="w-4 h-4 text-emerald-400" />
           </div>
           <div>
             <div className="flex items-baseline gap-1 mt-4">
-               <span className="text-4xl font-mono text-white font-bold select-all">
-                 {liveTasksCount.completed}
+               <span className="text-4xl font-mono text-[#10b881] font-bold select-all">
+                 {formatScreentime(screentimeSecs)}
                </span>
-               <span className="text-gray-500 text-xs font-mono">/ {liveTasksCount.total} compiled</span>
             </div>
-            <div className="flex items-center gap-1 mt-1 font-mono text-[9px] text-indigo-400">
-               <Layers className="w-3.5 h-3.5" /> {liveTasksCount.total - liveTasksCount.completed} outstanding active goals
+            <div className="flex items-center gap-1 mt-1 font-mono text-[9px] text-[#22c55e]">
+               <Sparkles className="w-3.5 h-3.5" /> Recording live session time
             </div>
           </div>
         </GlassCard>

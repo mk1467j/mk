@@ -809,15 +809,6 @@ export function Tools() {
           onClick={() => setActiveOverlay('quiz')} 
         />
 
-        {/* Tool 4: Mind Maps Card */}
-        <ToolCard 
-          icon={Network} 
-          title="Concept Mind Maps" 
-          desc="Map connections in a cosmic coordinate constellation node grid."
-          color="from-teal-500/20 to-transparent hover:border-teal-500/30"
-          onClick={() => setActiveOverlay('mindmap')} 
-        />
-
         {/* Tool 5: Study Planner Card */}
         <ToolCard 
           icon={Calendar} 
@@ -852,15 +843,6 @@ export function Tools() {
           desc="Rate and monitor review levels to conquer curves of memory decay."
           color="from-rose-500/20 to-transparent hover:border-rose-500/30"
           onClick={() => setActiveOverlay('revision')} 
-        />
-
-        {/* Tool 9: Adobe PDF Scholar */}
-        <ToolCard 
-          icon={BookOpen} 
-          title="Adobe PDF Scholar" 
-          desc="Integrate interactive Adobe PDF research textbook reading side-by-side with active study notes."
-          color="from-amber-600/20 to-transparent hover:border-amber-500/30"
-          onClick={() => setActiveOverlay('pdf_viewer')} 
         />
 
       </div>
@@ -1147,12 +1129,26 @@ export function Tools() {
                            {/* 3D Rotational card slot */}
                            <div 
                              onClick={() => setFcFlipped(!fcFlipped)}
-                             className="perspective-1000 w-full h-80 cursor-pointer"
+                             className="w-full h-80 cursor-pointer"
+                             style={{ perspective: '1000px' }}
                            >
-                              <div className={`relative w-full h-full duration-550 transform-style-3d ${fcFlipped ? 'rotate-y-180' : ''}`}>
+                              <div 
+                                className="relative w-full h-full"
+                                style={{
+                                  transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                                  transformStyle: 'preserve-3d',
+                                  transform: fcFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
+                                }}
+                              >
                                  
                                  {/* Front Surface */}
-                                 <div className="absolute inset-0 backface-hidden flex flex-col justify-between items-center p-8 bg-neutral-950 border border-white/10 rounded-3xl shadow-xl">
+                                 <div 
+                                   className="absolute inset-0 flex flex-col justify-between items-center p-8 bg-neutral-950 border border-white/10 rounded-3xl shadow-xl"
+                                   style={{
+                                     backfaceVisibility: 'hidden',
+                                     WebkitBackfaceVisibility: 'hidden'
+                                   }}
+                                 >
                                     <div className="w-full flex justify-between items-center text-[9px] font-mono text-gray-500 uppercase tracking-widest">
                                        <span>SCHOLAR REVISION DECK</span>
                                        <span>FRONT INQUIRY</span>
@@ -1162,9 +1158,16 @@ export function Tools() {
                                     </h4>
                                     <span className="text-[10px] font-mono text-brand-purple animate-pulse">TAP FRAME TO REVEAL DEEP SYNTHESIS ❯</span>
                                  </div>
-
+ 
                                  {/* Back Surface */}
-                                 <div className="absolute inset-x-0 inset-y-0 rotate-y-180 backface-hidden flex flex-col justify-between items-center p-8 bg-[#09090f] border border-brand-purple/35 rounded-3xl shadow-[0_0_20px_rgba(139,92,246,0.1)]">
+                                 <div 
+                                   className="absolute inset-x-0 inset-y-0 flex flex-col justify-between items-center p-8 bg-[#09090f] border border-brand-purple/35 rounded-3xl shadow-[0_0_20px_rgba(139,92,246,0.1)]"
+                                   style={{
+                                     transform: 'rotateY(180deg)',
+                                     backfaceVisibility: 'hidden',
+                                     WebkitBackfaceVisibility: 'hidden'
+                                   }}
+                                 >
                                     <div className="w-full flex justify-between items-center text-[9px] font-mono text-brand-purple uppercase tracking-widest">
                                        <span>SYNTHESIS INDEX</span>
                                        <span>BACK DECRYPTED</span>
@@ -1174,7 +1177,7 @@ export function Tools() {
                                     </p>
                                     <span className="text-[10px] font-mono text-gray-500">TAP FRAME TO FLIP AGAIN ❮</span>
                                  </div>
-
+ 
                               </div>
                            </div>
 

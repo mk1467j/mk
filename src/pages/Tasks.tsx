@@ -56,17 +56,18 @@ export function Tasks() {
         console.error('Error parsing tasks list', e);
       }
     } else {
-      // Seed default dashboard compatibility tasks if nothing exists
-      const defaultTasks: Task[] = [
+      const isGuest = currentUserId.startsWith('guest_') || currentUserId === 'guest_default';
+      // Seed default dashboard compatibility tasks if guest, otherwise start blank
+      const defaultTasks: Task[] = isGuest ? [
         { id: 1, title: 'Derive Schrödinger Equation', category: 'High Priority', completed: false, time: '02:00 PM', priority: 'High' },
         { id: 2, title: 'Review Heisenberg Principles', category: 'Completed', completed: true, time: '01:15 PM', priority: 'Medium' },
         { id: 3, title: 'Prepare Lab Report Draft', category: 'Upcoming', completed: false, time: '04:30 PM', priority: 'Medium' },
         { id: 4, title: 'Relativity Math exercises', category: 'Optional', completed: false, time: '06:15 PM', priority: 'Low' }
-      ];
+      ] : [];
       setTasks(defaultTasks);
       localStorage.setItem(storageKey, JSON.stringify(defaultTasks));
     }
-  }, [storageKey]);
+  }, [storageKey, currentUserId]);
 
   // Persisting state helper
   const saveTasks = (newTasks: Task[]) => {
@@ -208,7 +209,7 @@ export function Tasks() {
   }, [tasks]);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 min-h-screen pb-16 relative">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 min-h-screen pb-16 relative overflow-x-hidden">
       
       {/* Cinematic ambient aura backgrounds */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">

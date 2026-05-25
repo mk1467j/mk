@@ -9,6 +9,7 @@ import { GlassCard } from '@/components/GlassCard';
 import { useSettings } from '@/context/SettingsContext';
 import { useAuth } from '@/context/AuthContext';
 import { Link, useNavigate } from '@tanstack/react-router';
+import { saveFileToStorage, getFileObjectURL } from '@/lib/fileStorage';
 
 // Categories of rotating quotes
 interface QuoteItem {
@@ -115,9 +116,26 @@ export function StudyMode() {
     return localStorage.getItem('studyvibe_cinematic_study_active_wall_id') || 'rain-cabin';
   });
   
-  const [customWallUrl, setCustomWallUrl] = useState(() => {
-    return localStorage.getItem('studyvibe_cinematic_study_custom_url') || '';
-  });
+  const [customWallUrl, setCustomWallUrl] = useState('');
+
+  // Load custom wallpaper dynamically from IndexedDB
+  useEffect(() => {
+    const loadCustomWall = async () => {
+      const dbUrl = await getFileObjectURL('custom_wallpaper');
+      if (dbUrl) {
+        setCustomWallUrl(dbUrl);
+      } else {
+        // Migration fallback for legacy localStorage wallpapers
+        const legacyWall = localStorage.getItem('studyvibe_cinematic_study_custom_url');
+        if (legacyWall) {
+          setCustomWallUrl(legacyWall);
+          await saveFileToStorage('custom_wallpaper', legacyWall);
+          localStorage.removeItem('studyvibe_cinematic_study_custom_url');
+        }
+      }
+    };
+    loadCustomWall();
+  }, []);
 
   // Clock state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -330,12 +348,17 @@ export function StudyMode() {
         return;
       }
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         if (typeof reader.result === 'string') {
-          setCustomWallUrl(reader.result);
-          setActiveWallId('custom');
-          localStorage.setItem('studyvibe_cinematic_study_active_wall_id', 'custom');
-          localStorage.setItem('studyvibe_cinematic_study_custom_url', reader.result);
+          // Store raw image asset inside IndexedDB
+          await saveFileToStorage('custom_wallpaper', reader.result);
+          const liveUrl = await getFileObjectURL('custom_wallpaper');
+          if (liveUrl) {
+            setCustomWallUrl(liveUrl);
+            setActiveWallId('custom');
+            localStorage.setItem('studyvibe_cinematic_study_active_wall_id', 'custom');
+            localStorage.removeItem('studyvibe_cinematic_study_custom_url');
+          }
         }
       };
       reader.readAsDataURL(file);

@@ -51,6 +51,7 @@ export function BatchPage() {
   const [inputUrl, setInputUrl] = useState('');
   const [inputTitle, setInputTitle] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
   
   // Immersive Loader simulation
   const [loadingStep, setLoadingStep] = useState('');
@@ -304,6 +305,27 @@ export function BatchPage() {
     if (!activeBatch || !activeLectureId) return null;
     return activeBatch.lectures.find(l => l.id === activeLectureId) || null;
   }, [activeBatch, activeLectureId]);
+
+  const playlistDurationString = useMemo(() => {
+    if (!activeBatch) return '';
+    let totalSeconds = 0;
+    activeBatch.lectures.forEach(lec => {
+      const parts = (lec.duration || '').split(':').map(Number);
+      if (parts.length === 2) {
+        totalSeconds += parts[0] * 60 + parts[1];
+      } else if (parts.length === 3) {
+        totalSeconds += parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+    });
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+    if (hours > 0) {
+      return `${hours} hr ${minutes} min`;
+    }
+    return `${minutes} min`;
+  }, [activeBatch]);
 
   // Unified YouTube IFrame Player instance holder
   const playerRef = useRef<any>(null);
@@ -564,6 +586,7 @@ export function BatchPage() {
           setInputTitle('');
           setInputUrl('');
           setIsCreating(false);
+          setShowCreateForm(false);
           setActiveTab('view');
         }, 500);
       })
@@ -814,98 +837,140 @@ export function BatchPage() {
             className="space-y-8"
           >
             
-            {/* Create Batch Curation Drawer */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              
-              <div className="lg:col-span-4 glass-panel glow-indigo p-6 relative overflow-hidden h-fit">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
-                
-                <p className="font-mono text-[9px] uppercase tracking-widest text-indigo-400 font-bold mb-1">Assemble Playlist</p>
-                <h3 className="font-serif italic text-lg text-white font-medium mb-1">Create Learning Batch</h3>
-                <p className="text-xs text-gray-400 leading-relaxed mb-5">
-                  Paste any YouTube playlist or watch link to instantly compile modular components. We structure thumbnails and title indices automatically.
-                </p>
-
-                <form onSubmit={handleCreateBatch} className="space-y-4">
-                  <div>
-                    <label className="block text-[8.5px] font-mono text-gray-400 uppercase tracking-widest mb-1.5 font-bold">Custom Title Accent (Optional)</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Master React Core 19"
-                      value={inputTitle}
-                      onChange={(e) => setInputTitle(e.target.value)}
-                      className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-xs text-white placeholder:text-gray-600 focus:outline-none focus:border-indigo-500/40 transition-colors font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[8.5px] font-mono text-gray-400 uppercase tracking-widest mb-1.5 font-bold">Paste YouTube URL *</label>
-                    <div className="relative">
-                      <input 
-                        type="url" 
-                        required
-                        placeholder="Playlist or single video link..."
-                        value={inputUrl}
-                        onChange={(e) => setInputUrl(e.target.value)}
-                        className="w-full bg-black/40 border border-white/5 rounded-xl pl-10 pr-4 py-3 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/40 transition-colors font-mono"
-                      />
-                      <Link2 className="absolute left-3.5 top-3 w-4.5 h-4.5 text-gray-500" />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isCreating}
-                    className="w-full bg-white text-black hover:bg-gray-100 font-mono text-xs font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-40"
-                  >
-                    {isCreating ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" /> Assemble...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-4 h-4 text-black" /> Generate Immersive Batch
-                      </>
-                    )}
-                  </button>
-                </form>
-
-                {/* Simulated creation progress logger */}
-                {isCreating && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="pt-4 border-t border-white/5 mt-4 space-y-2 font-mono"
-                  >
-                    <div className="flex justify-between items-center text-[9.5px] text-gray-400">
-                      <span className="text-indigo-400 font-semibold">{loadingStep}</span>
-                      <span>{loadingProgress}%</span>
-                    </div>
-                    <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${loadingProgress}%` }} />
-                    </div>
-                  </motion.div>
-                )}
+            {/* Header section with optional Create Batch trigger */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4 mb-2">
+              <div>
+                <h3 className="font-serif text-lg text-white font-medium italic">Your Course Playlists</h3>
+                <p className="text-[10.5px] font-mono text-gray-500 uppercase">{batches.length} Course Playlists Available</p>
               </div>
 
-              {/* LIST OF CREATED BATCH CARDS (IMMEDIATELY DISPLAYING ALL LECTURES) */}
-              <div className="lg:col-span-8 space-y-5">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-serif text-lg text-white font-medium italic">Your Course Playlists</h3>
-                  <span className="font-mono text-[9px] text-gray-500 uppercase">{batches.length} Playlists</span>
-                </div>
+              <button
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                className={`px-4 py-2 rounded-xl text-xs font-mono font-medium transition-all border flex items-center gap-2 cursor-pointer ${
+                  showCreateForm
+                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20 shadow-md'
+                    : 'bg-white text-black border-white hover:bg-gray-100 shadow-md'
+                }`}
+              >
+                {showCreateForm ? (
+                  <>
+                    <X className="w-4 h-4" /> Close Planner
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" /> Create Learning Batch
+                  </>
+                )}
+              </button>
+            </div>
 
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {showCreateForm && (
+                <div className="lg:col-span-4 glass-panel glow-indigo p-6 relative overflow-hidden h-fit">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+                  
+                  <p className="font-mono text-[9px] uppercase tracking-widest text-indigo-400 font-bold mb-1">Assemble Playlist</p>
+                  <h3 className="font-serif italic text-lg text-white font-medium mb-1">Create Learning Batch</h3>
+                  <p className="text-xs text-gray-400 leading-relaxed mb-5">
+                    Paste any YouTube playlist or watch link to instantly compile modular components. We structure thumbnails and title indices automatically.
+                  </p>
+
+                  <form onSubmit={handleCreateBatch} className="space-y-4">
+                    <div>
+                      <label className="block text-[8.5px] font-mono text-gray-400 uppercase tracking-widest mb-1.5 font-bold">Custom Title Accent (Optional)</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Master React Core 19"
+                        value={inputTitle}
+                        onChange={(e) => setInputTitle(e.target.value)}
+                        className="w-full bg-black/40 border border-white/5 rounded-xl px-4 py-3 text-xs text-white placeholder:text-gray-650 focus:outline-none focus:border-indigo-500/40 transition-colors font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[8.5px] font-mono text-gray-400 uppercase tracking-widest mb-1.5 font-bold">Paste YouTube URL *</label>
+                      <div className="relative">
+                        <input 
+                          type="url" 
+                          required
+                          placeholder="Playlist or single video link..."
+                          value={inputUrl}
+                          onChange={(e) => setInputUrl(e.target.value)}
+                          className="w-full bg-black/40 border border-white/5 rounded-xl pl-10 pr-4 py-3 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/40 transition-colors font-mono"
+                        />
+                        <Link2 className="absolute left-3.5 top-3 w-4.5 h-4.5 text-gray-500" />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isCreating}
+                      className="w-full bg-white text-black hover:bg-gray-100 font-mono text-xs font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-40"
+                    >
+                      {isCreating ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" /> Assemble...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4 text-black" /> Generate Immersive Batch
+                        </>
+                      )}
+                    </button>
+                  </form>
+
+                  {/* Simulated creation progress logger */}
+                  {isCreating && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="pt-4 border-t border-white/5 mt-4 space-y-2 font-mono"
+                    >
+                      <div className="flex justify-between items-center text-[9.5px] text-gray-400">
+                        <span className="text-indigo-400 font-semibold">{loadingStep}</span>
+                        <span>{loadingProgress}%</span>
+                      </div>
+                      <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${loadingProgress}%` }} />
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              )}
+
+              {/* LIST OF CREATED BATCH CARDS */}
+              <div className={`${showCreateForm ? 'lg:col-span-8' : 'lg:col-span-12'} space-y-5`}>
                 {batches.length === 0 ? (
-                  <div className="p-12 text-center rounded-3xl border border-white/5 bg-neutral-950/25 space-y-2">
-                    <p className="text-gray-400 text-sm font-semibold">No playlist courses added yet.</p>
-                    <p className="text-xs text-gray-600 font-mono">Paste a YouTube playlist link above to import it as a study course.</p>
+                  <div className="p-12 text-center rounded-3xl border border-white/5 bg-neutral-950/25 space-y-4">
+                    <p className="text-gray-300 text-sm font-semibold">No playlist courses added yet.</p>
+                    <p className="text-xs text-gray-500 font-mono max-w-sm mx-auto">Click "+ Create Learning Batch" above and paste any YouTube playlist link to import it as an interactive study course!</p>
+                    <button
+                      onClick={() => setShowCreateForm(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-mono font-semibold rounded-xl text-white transition-all cursor-pointer shadow-md"
+                    >
+                      <Plus className="w-4.5 h-4.5 text-white" /> Open Course Planner
+                    </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className={`grid grid-cols-1 ${showCreateForm ? 'sm:grid-cols-1 md:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'} gap-6`}>
                     {batches.map((batch) => {
                       const completedCount = batch.lectures.filter(l => l.completed).length;
                       const activeLecTitle = batch.lectures.find(l => l.id === batch.lastWatchedLectureId)?.title || "Orientation";
                       
+                      // Calculate batch total playlist duration
+                      let totalSeconds = 0;
+                      batch.lectures.forEach(lec => {
+                        const parts = (lec.duration || '').split(':').map(Number);
+                        if (parts.length === 2) {
+                          totalSeconds += parts[0] * 60 + parts[1];
+                        } else if (parts.length === 3) {
+                          totalSeconds += parts[0] * 3600 + parts[1] * 60 + parts[2];
+                        }
+                      });
+                      const hrs = Math.floor(totalSeconds / 3600);
+                      const mins = Math.floor((totalSeconds % 3600) / 60);
+                      const durationStr = hrs > 0 ? `${hrs} hr ${mins} min` : `${mins} min`;
+
                       return (
                         <div
                           key={batch.id}
@@ -914,7 +979,7 @@ export function BatchPage() {
                             setActiveLectureId(batch.lastWatchedLectureId || batch.lectures[0].id);
                             setActiveTab('view');
                           }}
-                          className="group relative glass-panel p-5 hover:border-indigo-500/30 hover:scale-[1.01] transition-all duration-300 cursor-pointer overflow-hidden flex flex-col justify-between min-h-[260px] shadow-lg text-left glow-indigo"
+                          className="group relative glass-panel p-5 hover:border-indigo-500/30 hover:scale-[1.01] transition-all duration-300 cursor-pointer overflow-hidden flex flex-col justify-between min-h-[260px] shadow-lg text-left glow-indigo animate-in fade-in"
                         >
                           {/* Highlight background banner projection */}
                           <div className="absolute inset-0 bg-cover bg-center opacity-[0.03] grayscale transition-all duration-500 pointer-events-none group-hover:scale-105 group-hover:opacity-[0.06]" style={{ backgroundImage: `url(${batch.coverImage})` }} />
@@ -943,7 +1008,12 @@ export function BatchPage() {
                               <h4 className="font-serif text-base text-white tracking-tight leading-tight font-medium group-hover:text-indigo-400 transition-colors">
                                 {batch.title}
                               </h4>
-                              <p className="text-[10px] text-gray-500 font-mono">YouTube Playlist Course</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-[10px] text-gray-500 font-mono">YouTube Playlist Course</p>
+                                <span className="text-[10px] text-indigo-300 font-mono flex items-center gap-1">
+                                  🍉 {durationStr}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
@@ -997,7 +1067,7 @@ export function BatchPage() {
           >
             
             {/* Playroom Left: Lectures vertical sidebar (Full desktop list, mobile responsive collapsible side) */}
-            <div className="lg:col-span-4 glass-panel glow-indigo overflow-hidden flex flex-col h-full lg:max-h-[700px]">
+            <div className="lg:col-span-4 glass-panel glow-indigo overflow-hidden flex flex-col h-full lg:max-h-[700px] order-2 lg:order-1">
               
               <div className="p-4 border-b border-white/5 flex items-center justify-between bg-black/20">
                 <div>
@@ -1005,6 +1075,11 @@ export function BatchPage() {
                   <h4 className="text-xs font-serif text-white truncate font-medium max-w-[200px]" title={activeBatch.title}>
                     {activeBatch.title}
                   </h4>
+                  {playlistDurationString && (
+                    <p className="text-[9.5px] font-mono text-indigo-300 mt-1 flex items-center gap-1">
+                      🍉 {playlistDurationString} total
+                    </p>
+                  )}
                 </div>
 
                 <div className="text-right">
@@ -1175,7 +1250,7 @@ export function BatchPage() {
             </div>
 
             {/* Playroom Right: Immersive stream viewport player & text notes */}
-            <div className="lg:col-span-8 space-y-6">
+            <div className="lg:col-span-8 space-y-6 order-1 lg:order-2">
               
               {/* POPUP FOCUS SUGGESTION OVERLAY */}
               <AnimatePresence>

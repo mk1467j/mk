@@ -81,6 +81,7 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
   const pdfCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fabricCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fabricInstanceRef = useRef<any>(null);
+  const renderTaskRef = useRef<any>(null);
 
   // Sync state indication
   const [syncStatus, setSyncStatus] = useState<'synced' | 'saving' | 'offline'>('synced');
@@ -235,6 +236,16 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
 
     const renderSequence = async () => {
       try {
+        // Cancel outstanding render task if any
+        if (renderTaskRef.current) {
+          try {
+            renderTaskRef.current.cancel();
+          } catch {
+            // ignore
+          }
+          renderTaskRef.current = null;
+        }
+
         const page = await pdfDoc.getPage(currentPage);
         if (!isCurrent) return;
 
@@ -256,12 +267,23 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
           viewport: viewport
         };
 
-        await page.render(renderContext).promise;
+        const renderTask = page.render(renderContext);
+        renderTaskRef.current = renderTask;
+
+        await renderTask.promise;
+        
+        if (renderTaskRef.current === renderTask) {
+          renderTaskRef.current = null;
+        }
+
         if (!isCurrent) return;
 
         // Initialize Fabric Overlay
         initFabricCanvas(viewport.width, viewport.height);
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.name === 'RenderingCancelledException' || err?.message?.includes('cancelled')) {
+          return; // peaceful cancel
+        }
         console.error('Underlying canvas compiling error:', err);
       }
     };
@@ -270,6 +292,14 @@ export function PdfViewer({ url, title, onClose }: PdfViewerProps) {
 
     return () => {
       isCurrent = false;
+      if (renderTaskRef.current) {
+        try {
+          renderTaskRef.current.cancel();
+        } catch {
+          // ignore
+        }
+        renderTaskRef.current = null;
+      }
       // Dispose Fabric canvas completely to prevent layout duplicate-mismatches
       if (fabricInstanceRef.current) {
         fabricInstanceRef.current.dispose();
